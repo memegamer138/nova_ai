@@ -1,0 +1,6 @@
+{
+  "app_name": "Nova AI",
+  "version": "0.1.0",
+  "log_level": "INFO",
+  "log_directory": "logs"
+}
