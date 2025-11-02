@@ -1,3 +1,6 @@
 # Ignore Python __pycache__ directories anywhere (including nested folders)
 __pycache__/
 **/__pycache__/**
+
+# Ignore log files
+logs/
