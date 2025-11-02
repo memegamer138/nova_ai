@@ -1,3 +1,6 @@
-# Ignore tests __pycache__ directory
-/tests/__pycache__/
+# Ignore any __pycache__ directories anywhere in the repo
+__pycache__/
+__pycache__*/
 
+/core/__pycache__/
+/skills/__pycache__/
