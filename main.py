@@ -7,7 +7,7 @@ import os
 # Ensure logs folder exists
 if not os.path.isdir('logs'):
     os.makedirs('logs')
-    
+
 def load_skills():
     """Auto-load all modules in the 'skills' folder."""
     import skills

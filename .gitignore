@@ -4,3 +4,6 @@ __pycache__/
 
 # Ignore log files
 logs/
+
+# Ignore VSCode workspace settings
+.vscode/settings.json
