@@ -1,6 +1,3 @@
-# Ignore any __pycache__ directories anywhere in the repo
+# Ignore Python __pycache__ directories anywhere (including nested folders)
 __pycache__/
-__pycache__*/
-
-/core/__pycache__/
-/skills/__pycache__/
+**/__pycache__/**
