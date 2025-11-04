@@ -2,7 +2,7 @@
 import os
 import shutil
 import logging
-from core.registry import register_skill
+from ..core.registry import register_skill
 
 # Configure basic logging for this skill
 logger = logging.getLogger("file_manager")

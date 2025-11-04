@@ -1,6 +1,14 @@
+import os
+import sys
 import unittest
 
-from core import registry
+# make src/ available so tests can import the nova_ai package when running
+repo_root = os.path.dirname(os.path.dirname(__file__))
+src_path = os.path.join(repo_root, "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+from src.nova_ai.core import registry
 
 
 class RegistryTests(unittest.TestCase):

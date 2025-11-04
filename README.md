@@ -75,17 +75,23 @@ This project runs code on your local machine. That means you are responsible for
 - The parser is intentionally simple and heuristic-based. For more robust intent parsing, consider integrating an NLP model or rule engine.
 - The code is Python 3.12+ (as used during development). Keep dependencies minimal; the core uses only the Python stdlib.
 
-## Roadmap (suggested next steps)
+# What talks to what
 
-- Add an explicit permissions system and confirmation prompts for destructive actions.
-- Add more skills: web automation (open browser, play YouTube), system commands, clipboard management, project scaffolding, research/notes collection.
-- Implement a small web or GUI dashboard to view logs, enable/disable skills, and configure defaults.
-- Add unit tests for parsing and skill wiring; add a simple test harness under `tests/`.
-- Explore secure plugins and a sandbox for running third-party skills.
-
-## Contributing
-
-This is a personal project. Contributions are welcome — open a PR or issue with a clear description of the feature or bug. Please be mindful of security implications when contributing skills.
+```
+USER (voice/text)
+   ↓
+INPUT LAYER (wake-word / speech2text or CLI)
+   ↓
+LLM (reasoner)  ←→ Tool spec (what skills exist, with schemas)
+   ↓ (JSON: intent(s) + params)
+VALIDATION LAYER (safety checks, sandboxing, confirmations)
+   ↓
+DISPATCHER / EXECUTOR  (calls registered skill functions)
+   ↓
+FILE_MANAGER SKILL (creates/deletes/moves/copies/etc.)
+   ↓
+AUDIT LOG + TTS / text response back to user
+```
 
 ## License
 

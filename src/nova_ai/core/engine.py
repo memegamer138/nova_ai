@@ -1,5 +1,5 @@
 # core/engine.py
-from core.registry import get_skill, required_permissions
+from .registry import get_skill, required_permissions
 import re
 import os
 from typing import Optional, Tuple, Dict
@@ -50,17 +50,15 @@ def _extract_target_name(command: str) -> Optional[str]:
 
 
 def _extract_destination(command: str) -> Optional[str]:
-    """Extract destination directory from command."""
-    # absolute Windows path
-    m = re.search(r"[A-Za-z]:\\[^,;]+", command)
-    if m:
-        return os.path.expandvars(os.path.expanduser(m.group(0).strip()))
-    # absolute Unix path
-    m = re.search(r"(/[^,;]+)", command)
-    if m and m.group(1).startswith("/"):
-        return os.path.expandvars(os.path.expanduser(m.group(1).strip()))
+    """Extract destination directory from command.
 
-    # named folders
+    Notes:
+    - Prefer named folders (Desktop, OneDrive, etc.).
+    - Support patterns like 'OneDrive/Code' or 'OneDrive\\Code' where a named folder
+      is followed by a subpath.
+    - Fall back to absolute Windows (C:\...) and absolute Unix (/...) paths.
+    """
+    # named folders mapping
     name_map = {
         "desktop": os.path.join(os.path.expanduser("~"), "Desktop"),
         "downloads": os.path.join(os.path.expanduser("~"), "Downloads"),
@@ -70,6 +68,16 @@ def _extract_destination(command: str) -> Optional[str]:
         "home": os.path.expanduser("~"),
     }
 
+    # 1) named folder with subpath, e.g. 'OneDrive/Code' or 'OneDrive\\Code'
+    m = re.search(r"\b(Desktop|Downloads|Documents|Pictures|OneDrive|Home)\s*[\\/]\s*([^,;\n]+)", command, flags=re.IGNORECASE)
+    if m:
+        key = m.group(1).strip().lower()
+        sub = m.group(2).strip().strip('/\\')
+        base = name_map.get(key)
+        if base:
+            return os.path.join(base, sub)
+
+    # 2) explicit phrasing like 'in OneDrive' or 'in my Documents'
     m = re.search(r"\b(?:in|to|on)\s+(?:my\s+)?([A-Za-z0-9_\- ]+)(?:\s+folder|\s+directory)?\b", command)
     if m:
         key = m.group(1).strip().lower()
@@ -77,9 +85,21 @@ def _extract_destination(command: str) -> Optional[str]:
         if key_token in name_map:
             return name_map[key_token]
 
+    # 3) absolute Windows path (e.g. C:\Users\...)
+    m = re.search(r"[A-Za-z]:\\[^,;]+", command)
+    if m:
+        return os.path.expandvars(os.path.expanduser(m.group(0).strip()))
+
+    # 4) absolute Unix-like path (/some/path)
+    m = re.search(r"(/[^,;]+)", command)
+    if m and m.group(1).startswith("/"):
+        return os.path.expandvars(os.path.expanduser(m.group(1).strip()))
+
+    # 5) fallback: any named folder mentioned anywhere
     for token, path in name_map.items():
         if re.search(rf"\b{re.escape(token)}\b", command, flags=re.IGNORECASE):
             return path
+
     return None
 
 
@@ -114,9 +134,11 @@ def parse_command(command: str) -> Tuple[Optional[str], Dict[str, str]]:
     if "create" in text and "folder" in text:
         intent = "create_folder"
         params["foldername"] = _extract_target_name(command)
+        params["dest"] = _extract_destination(command)
     elif "delete" in text and "folder" in text:
         intent = "delete_folder"
         params["foldername"] = _extract_target_name(command)
+        params["dest"] = _extract_destination(command)
         params["recursive"] = "recursive" in text
     elif "list" in text or "show contents" in text:
         intent = "list_dir"

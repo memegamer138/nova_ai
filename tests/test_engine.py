@@ -3,12 +3,14 @@ import os
 import sys
 import unittest
 
-# allow running this test module directly by adding repo root to sys.path
+# allow running this test module directly by adding src/ to sys.path so
+# the `nova_ai` package (under src/) can be imported during tests
 repo_root = os.path.dirname(os.path.dirname(__file__))
-if repo_root not in sys.path:
-    sys.path.insert(0, repo_root)
+src_path = os.path.join(repo_root, "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
-from core import registry, engine
+from src.nova_ai.core import registry, engine
 
 class EngineTests(unittest.TestCase):
     def setUp(self):
