@@ -235,3 +235,101 @@ def handle_command(command: str, granted_permissions=None):
         duration_ms = int((time.time() - start) * 1000)
         logger.exception("cmd.error cid=%s intent=%s duration_ms=%d error=%s", cid, intent, duration_ms, e)
         return f"Error: {e}"
+
+
+def handle_action(action: dict, granted_permissions=None):
+    """Handle a structured action (from an LLM adapter or other source).
+
+    Accepts either a single action dict {"action": <str>, "args": {...}}
+    or a batch action {"action":"batch","args":{"actions":[...]}}.
+
+    Safety behavior:
+    - If an action is considered destructive (delete_file, delete_folder, move_file, write_file)
+      and the action's args do not include `'confirm': True`, the engine returns a
+      requires-confirmation response instead of executing.
+    - Permissions are enforced using the registry.required_permissions() helper.
+
+    Returns:
+    - For a single executed action: the skill's return value.
+    - For a batch where all actions executed: {"status":"batch","results": [..]}.
+    - If confirmation required: {"status":"requires_confirmation","pending": [...]}.
+    - On error: {"status":"error","message": ...}
+    """
+    cid = uuid.uuid4().hex
+    logger = logging.getLogger(__name__)
+    logger.info("action.received cid=%s action=%s", cid, action)
+
+    if not isinstance(action, dict) or "action" not in action:
+        logger.warning("action.invalid cid=%s action=%r", cid, action)
+        return {"status": "error", "message": "invalid action format"}
+
+    granted = set(granted_permissions) if granted_permissions else set()
+
+    # normalize to list of actions
+    actions = []
+    if action.get("action") == "batch":
+        args = action.get("args", {}) or {}
+        actions = args.get("actions", []) if isinstance(args, dict) else []
+    else:
+        actions = [action]
+
+    # helpers
+    destructive = {"delete_file", "delete_folder", "move_file", "write_file"}
+    pending_confirm = []
+    results = []
+
+    from .registry import required_permissions, get_skill
+
+    for idx, act in enumerate(actions):
+        if not isinstance(act, dict):
+            pending_confirm.append({"index": idx, "reason": "malformed action"})
+            continue
+        intent = act.get("action")
+        args = act.get("args") or {}
+
+        # basic validation
+        if not intent or not isinstance(args, dict):
+            pending_confirm.append({"index": idx, "reason": "invalid intent or args"})
+            continue
+
+        # permission check
+        req_perms = required_permissions(intent)
+        if req_perms and not req_perms.issubset(granted):
+            logger.info("action.permission_denied cid=%s intent=%s req=%s granted=%s", cid, intent, sorted(req_perms), sorted(granted))
+            return {"status": "error", "message": f"permission denied for intent '{intent}'"}
+
+        # confirmation check for destructive actions
+        if intent in destructive:
+            if not args.get("confirm"):
+                # collect pending confirmation; include the original args for transparency
+                pending_confirm.append({"index": idx, "action": intent, "args": args})
+                continue
+
+        # dispatch
+        skill = get_skill(intent)
+        if not skill:
+            logger.warning("action.no_skill cid=%s intent=%s", cid, intent)
+            results.append({"status": "error", "message": f"no skill for intent '{intent}'"})
+            continue
+
+        # remove control args (like confirm) before calling the skill
+        call_args = {k: v for k, v in args.items() if k != "confirm"}
+
+        try:
+            start = time.time()
+            res = skill(**call_args)
+            duration_ms = int((time.time() - start) * 1000)
+            results.append(res)
+            logger.info("action.executed cid=%s intent=%s duration_ms=%d result=%s", cid, intent, duration_ms, str(res)[:200])
+        except Exception as e:
+            logger.exception("action.error cid=%s intent=%s error=%s", cid, intent, e)
+            results.append({"status": "error", "message": str(e)})
+
+    if pending_confirm:
+        logger.info("action.requires_confirmation cid=%s pending=%s", cid, pending_confirm)
+        return {"status": "requires_confirmation", "pending": pending_confirm}
+
+    if len(results) == 1 and action.get("action") != "batch":
+        return results[0]
+
+    return {"status": "batch", "results": results}
