@@ -4,19 +4,22 @@ import re
 import os
 from typing import Optional, Tuple, Dict
 import logging
+from logging.handlers import RotatingFileHandler
 import uuid
 import time
 
-# ensure logs directory exists (placed at repo root /logs)
-repo_root = os.path.dirname(os.path.dirname(__file__))
-logs_dir = os.path.join(repo_root, "logs")
+# Ensure logs directory (at current working directory) exists
+logs_dir = os.path.join(os.getcwd(), "logs")
 os.makedirs(logs_dir, exist_ok=True)
-log_file = os.path.join(logs_dir, "nova_engine.log")
-logging.basicConfig(
-    filename=log_file,
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+
+# Set up module logger with rotation (avoid global basicConfig)
+LOGGER = logging.getLogger("nova_engine")
+if not LOGGER.handlers:
+    handler = RotatingFileHandler(os.path.join(logs_dir, "nova_engine.log"), maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    LOGGER.addHandler(handler)
+    LOGGER.setLevel(logging.INFO)
 
 # -------------------- COMMAND PARSING -------------------- #
 
@@ -190,7 +193,7 @@ def handle_command(command: str, granted_permissions=None):
     cid = uuid.uuid4().hex
     raw_cmd = (command or "").strip()
     short_cmd = (raw_cmd[:500] + "...") if len(raw_cmd) > 500 else raw_cmd
-    logger = logging.getLogger(__name__)
+    logger = LOGGER
 
     logger.info("cmd.received cid=%s command=%s", cid, short_cmd)
 
@@ -256,7 +259,7 @@ def handle_action(action: dict, granted_permissions=None):
     - On error: {"status":"error","message": ...}
     """
     cid = uuid.uuid4().hex
-    logger = logging.getLogger(__name__)
+    logger = LOGGER
     logger.info("action.received cid=%s action=%s", cid, action)
 
     if not isinstance(action, dict) or "action" not in action:

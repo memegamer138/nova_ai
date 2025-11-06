@@ -2,7 +2,8 @@
 import json
 import shlex
 import subprocess
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+import os
 
 class AdapterError(RuntimeError):
     pass
@@ -126,20 +127,138 @@ def parse_and_validate(raw: str) -> Dict[str,Any]:
     if not objs:
         raise AdapterError(f"failed to parse JSON from model output; raw start: {raw[:200]!r}")
 
+    def _normalize_content(val: Any) -> str:
+        """Normalize content to a string.
+        - list/tuple -> join with newlines
+        - dict with keys like line1,line2 -> join values ordered by the number
+        - other dict -> JSON dump
+        - non-string -> str()
+        """
+        if isinstance(val, (list, tuple)):
+            return "\n".join(str(x) for x in val)
+        if isinstance(val, dict):
+            # If keys look like line\d+, order by number
+            keys = list(val.keys())
+            if keys and all(isinstance(k, str) and k.lower().startswith("line") for k in keys):
+                def _keynum(k: str) -> int:
+                    try:
+                        return int("".join(ch for ch in k if ch.isdigit()) or 0)
+                    except Exception:
+                        return 0
+                ordered = [val[k] for k in sorted(keys, key=_keynum)]
+                return "\n".join(str(x) for x in ordered)
+            try:
+                return json.dumps(val, ensure_ascii=False)
+            except Exception:
+                return str(val)
+        if isinstance(val, str):
+            return val
+        return str(val)
+
+    def _split_file_path(path: str) -> tuple[Optional[str], str]:
+        if not path:
+            return None, ""
+        p = os.path.normpath(path)
+        directory, name = os.path.split(p)
+        if directory in ("", "."):
+            return None, name
+        return directory, name
+
+    def _normalize_args(action: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        args = dict(args or {})
+        # Common synonyms
+        if action in {"create_folder", "delete_folder"}:
+            # accept folder_name, name, folder, filename (LLM confusion) -> foldername
+            for k in ("folder_name", "name", "folder", "filename"):
+                if k in args and "foldername" not in args:
+                    args["foldername"] = args.pop(k)
+                    break
+            # accept dest synonyms
+            for k in ("path", "directory", "dir", "location"):
+                if k in args and "dest" not in args:
+                    args["dest"] = args.pop(k)
+                    break
+
+        elif action in {"create_file", "write_file", "read_file", "delete_file"}:
+            # filename synonyms
+            for k in ("name", "file", "basename"):
+                if k in args and "filename" not in args:
+                    args["filename"] = args.pop(k)
+                    break
+            # path handling: file_path/filepath/path may contain both
+            for k in ("file_path", "filepath", "path"):
+                if k in args:
+                    maybe_path = args.pop(k)
+                    if isinstance(maybe_path, str):
+                        d, n = _split_file_path(maybe_path)
+                        if n and "filename" not in args:
+                            args["filename"] = n
+                        if d and "dest" not in args:
+                            args["dest"] = d
+                    break
+            # dest synonyms
+            for k in ("folder", "directory", "dir", "location"):
+                if k in args and "dest" not in args:
+                    args["dest"] = args.pop(k)
+                    break
+            # content normalization for create/write_file
+            if action in {"create_file", "write_file"}:
+                if "content" not in args:
+                    # derive from 'lines' or 'text' or 'body' or 'data'
+                    for k in ("lines", "text", "body", "data"):
+                        if k in args:
+                            args["content"] = _normalize_content(args.pop(k))
+                            break
+                else:
+                    # if content is not a string, normalize
+                    if not isinstance(args["content"], str):
+                        args["content"] = _normalize_content(args["content"])
+
+        elif action in {"move_file", "copy_file"}:
+            # src synonyms
+            for k in ("source", "file", "name"):
+                if k in args and "src" not in args:
+                    args["src"] = args.pop(k)
+                    break
+            # If src given as path, split
+            if "src" in args and isinstance(args["src"], str) and ("/" in args["src"] or "\\" in args["src"]):
+                d, n = _split_file_path(args["src"])
+                if n:
+                    args["src"] = n
+                if d and "src_from" not in args:
+                    args["src_from"] = d
+            # dest synonyms
+            for k in ("destination", "folder", "directory", "dir", "location"):
+                if k in args and "dest" not in args:
+                    args["dest"] = args.pop(k)
+                    break
+
+        elif action == "list_dir":
+            # accept folder/directory/dir/location/dest
+            for k in ("folder", "directory", "dir", "location", "dest"):
+                if k in args and "path" not in args:
+                    args["path"] = args.pop(k)
+                    break
+
+        return args
+
+    # If multiple objects, normalize each and return a batch
     # If multiple objects, return a batch action containing them
     if len(objs) > 1:
-        # validate inner objects minimally
+        norm_actions: List[Dict[str, Any]] = []
         for o in objs:
             act = o.get("action")
             if act not in ALLOWED_ACTIONS and act != "none":
                 raise AdapterError(f"unknown or disallowed action in batch: {act}")
             if not isinstance(o.get("args", {}), dict):
                 raise AdapterError("args must be an object in batch")
-        return {"action": "batch", "args": {"actions": objs}}
+            o["args"] = _normalize_args(act, o.get("args", {}))
+            norm_actions.append(o)
+        return {"action": "batch", "args": {"actions": norm_actions}}
 
     obj = objs[0]
     action = obj.get("action")
-    args = obj.get("args", {})
+    args = _normalize_args(action, obj.get("args", {}))
 
     # Basic forbidden-path check (after we have args)
     for key in ("filename", "dest"):
