@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nova Assistant</title>
+  <style>
+    :root {
+      --bg: #03040a;
+      --grid-color: rgba(0,255,255,0.05);
+      --neon-teal: #00eaff;
+      --neon-magenta: #ff00cc;
+      --neon-yellow: #ffec3d;
+      --panel-bg: rgba(25,25,38,0.55);
+      --panel-border: rgba(255,255,255,0.08);
+      --radius: 14px;
+      --font-stack: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-stack);
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: #e9ecf1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 28px 48px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Animated grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-color) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+      background-size: 60px 60px, 60px 60px;
+      animation: gridScroll 18s linear infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes gridScroll {
+      0% { background-position: 0 0, 0 0; }
+      100% { background-position: 600px 600px, 600px 600px; }
+    }
+
+    h2 {
+      font-weight: 700;
+      margin: 0 0 12px;
+      letter-spacing: 2px;
+      font-size: 26px;
+      background: linear-gradient(90deg,var(--neon-teal),var(--neon-magenta));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      position: relative;
+      filter: drop-shadow(0 0 6px var(--neon-teal)) drop-shadow(0 0 12px var(--neon-magenta));
+    }
+    h2 .glitch-layer {
+      position: absolute; left:0; top:0; width:100%; height:100%;
+      mix-blend-mode: screen; animation: glitch 3.6s infinite;
+    }
+    @keyframes glitch {
+      0%,92%,100% { transform: translate(0,0); opacity:1; }
+      93% { transform: translate(2px,-2px); opacity:.8; }
+      94% { transform: translate(-2px,1px); opacity:.7; }
+      95% { transform: translate(3px,-1px); opacity:.9; }
+      96% { transform: translate(-1px,2px); opacity:.85; }
+      97% { transform: translate(2px,1px); opacity:.75; }
+    }
+
+    /* Neon ring */
+    .circle {
+      width: 190px; height:190px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; font-weight:700;
+      letter-spacing:1px; font-size:24px; position:relative; margin:26px 0 18px;
+      background: radial-gradient(circle at 30% 30%, rgba(0,234,255,0.45), rgba(0,0,0,0.9));
+      box-shadow: 0 0 20px -4px var(--neon-teal), 0 0 38px -6px var(--neon-magenta);
+      animation: ringPulse 3.8s ease-in-out infinite;
+      overflow:hidden;
+      isolation:isolate;
+    }
+    @keyframes ringPulse {
+      0%,100% { transform:scale(1); filter:hue-rotate(0deg); }
+      50% { transform:scale(1.06); filter:hue-rotate(25deg); }
+    }
+    .circle::before, .circle::after {
+      content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    }
+    .circle::before {
+      padding:4px; background:conic-gradient(from 0deg,var(--neon-teal),var(--neon-magenta),var(--neon-teal));
+      -webkit-mask: radial-gradient(circle at center, transparent 70%, black 71%);
+      mask: radial-gradient(circle at center, transparent 70%, black 71%);
+      animation: rotateGrad 9s linear infinite;
+      opacity:.55;
+    }
+    .circle::after {
+      background: radial-gradient(circle, transparent 58%, rgba(255,255,255,0.07) 65%, transparent 72%);
+    }
+    @keyframes rotateGrad { to { transform: rotate(360deg); } }
+    .circle span.glitch-text { position:relative; }
+    .circle span.glitch-text::after, .circle span.glitch-text::before {
+      content: attr(data-text); position:absolute; left:0; top:0; padding-left:0;
+      animation: textShift 2.8s infinite; mix-blend-mode:screen;
+    }
+    .circle span.glitch-text::before { color: var(--neon-magenta); }
+    .circle span.glitch-text::after { color: var(--neon-teal); animation-delay: .4s; }
+    @keyframes textShift {
+      0%,94%,100% { transform: translate(0,0); opacity:.9; }
+      95% { transform: translate(-2px,1px); opacity:.6; }
+      96% { transform: translate(2px,-1px); opacity:.7; }
+      97% { transform: translate(-1px,2px); opacity:.5; }
+      98% { transform: translate(1px,-2px); opacity:.65; }
+    }
+
+    /* Panels */
+    .panel {
+      width:100%; max-width:500px; background: var(--panel-bg);
+      border:1px solid var(--panel-border); backdrop-filter: blur(14px) saturate(140%);
+      padding:18px 18px 20px; border-radius: var(--radius);
+      position:relative; z-index:1; box-shadow: 0 0 22px -6px rgba(0,234,255,0.3), 0 0 40px -10px rgba(255,0,204,0.35);
+    }
+    .panel::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:linear-gradient(135deg,rgba(255,0,204,0.12),rgba(0,234,255,0.10)); mix-blend-mode:overlay; }
+
+    textarea {
+      width:100%; height:110px; background:rgba(8,12,20,0.85); color:#dfe7ee; border:1px solid rgba(0,234,255,0.35);
+      border-radius:10px; padding:12px 14px; font-size:15px; line-height:1.35; resize:vertical; font-family:var(--font-stack);
+      outline:none; box-shadow:0 0 0 0 rgba(255,0,204,0.6), 0 0 12px rgba(0,234,255,0.25) inset;
+      transition: border-color .25s, box-shadow .35s;
+    }
+    textarea:focus { border-color: var(--neon-magenta); box-shadow:0 0 6px -1px var(--neon-magenta), 0 0 16px -4px var(--neon-teal) inset; }
+
+    button {
+      --pad-x: 22px; --pad-y: 11px;
+      background: linear-gradient(135deg,var(--neon-magenta),var(--neon-teal)); border:none; color:#fff;
+      padding: var(--pad-y) var(--pad-x); border-radius: 10px; cursor:pointer; font-size:14px; letter-spacing:.7px;
+      position:relative; isolation:isolate; font-weight:600; box-shadow:0 0 14px -4px var(--neon-magenta),0 0 20px -6px var(--neon-teal);
+      transition: transform .25s, box-shadow .35s, filter .6s;
+    }
+    button:hover:not(:disabled) { transform:translateY(-3px); box-shadow:0 0 18px -2px var(--neon-magenta),0 0 28px -4px var(--neon-teal); filter:saturate(140%); }
+    button:disabled { opacity:.45; cursor:not-allowed; filter:grayscale(.4); }
+    button.alt { background: linear-gradient(135deg,#ff9900,#ff0055); }
+
+    .pending { background:rgba(255,0,204,0.10); border-left:3px solid var(--neon-magenta); padding:10px 12px; border-radius:8px; margin:8px 0; font-size:13px; color:#ffc6f4; backdrop-filter:blur(6px); }
+    .log { margin-top:22px; height:210px; overflow-y:auto; padding:16px 16px; border-radius:12px; background:rgba(5,10,18,0.75); font-size:12.8px; white-space:pre-wrap; border:1px solid rgba(0,234,255,0.25); box-shadow: inset 0 0 14px -4px rgba(0,234,255,0.35), inset 0 0 28px -10px rgba(255,0,204,0.4); }
+    .log::-webkit-scrollbar { width:8px; }
+    .log::-webkit-scrollbar-track { background:rgba(0,0,0,0.25); }
+    .log::-webkit-scrollbar-thumb { background:linear-gradient(var(--neon-magenta),var(--neon-teal)); border-radius:6px; }
+
+    .flex-row { display:flex; gap:14px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+
+  <h2>NOVA<span class="glitch-layer">NOVA</span></h2>
+
+  <div class="circle"><span class="glitch-text" data-text="NOVA">NOVA</span></div>
+
+  <div class="panel">
+    <textarea id="prompt" placeholder="Ask Nova anything related to file management..."></textarea>
+    <div style="margin-top:12px;">
+      <div class="flex-row">
+        <button id="sendBtn">EXECUTE</button>
+        <button id="clearBtn" class="alt">CLEAR</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pendingContainer" class="panel" style="display:none;">
+    <h4>Pending destructive actions</h4>
+    <div id="pendingList"></div>
+    <button id="confirmBtn" class="alt">CONFIRM & EXECUTE</button>
+  </div>
+
+  <div class="log panel" id="log"></div>
+
+  <script>
+    const promptEl = document.getElementById('prompt');
+    const logEl = document.getElementById('log');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const pendingContainer = document.getElementById('pendingContainer');
+    const pendingListEl = document.getElementById('pendingList');
+    const confirmBtn = document.getElementById('confirmBtn');
+    let latestPending = [];
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+    }
+
+    async function sendPrompt() {
+      const text = promptEl.value.trim();
+      if (!text) return;
+      sendBtn.disabled = true;
+      log('Sending prompt...');
+
+      try {
+        const res = await window.nova.sendPrompt(text);
+        if (res.error) { log(`Error: ${res.message || res.error}`); return; }
+
+        log('Action: ' + JSON.stringify(res.action));
+
+        const result = res.result;
+        if (result?.status === 'requires_confirmation') {
+          latestPending = result.pending || [];
+          renderPending();
+        } else {
+          latestPending = [];
+          pendingContainer.style.display = 'none';
+          window.nova.speak('Done');
+          log('Result: ' + JSON.stringify(result));
+        }
+      } catch (e) {
+        log('Exception: ' + e);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function renderPending() {
+      pendingListEl.innerHTML = '';
+      pendingContainer.style.display = latestPending.length ? 'block' : 'none';
+
+      latestPending.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'pending';
+        div.innerText = `${idx+1}. ${item.action} ${JSON.stringify(item.args)}`;
+        pendingListEl.appendChild(div);
+      });
+    }
+
+    async function confirmActions() {
+      confirmBtn.disabled = true;
+      const actions = latestPending.map(p => ({ action: p.action, args: p.args }));
+
+      try {
+        const res = await window.nova.confirmActions(actions);
+        log('Confirm result: ' + JSON.stringify(res));
+        pendingContainer.style.display = 'none';
+        latestPending = [];
+        window.nova.speak('Confirmed');
+      } catch (e) {
+        log('Confirm error: ' + e);
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendPrompt);
+    clearBtn.addEventListener('click', () => { promptEl.value = ''; });
+    confirmBtn.addEventListener('click', confirmActions);
+
+    // Passive glitch intensifier on interval
+    setInterval(() => {
+      const h2 = document.querySelector('h2');
+      h2.style.filter = 'drop-shadow(0 0 6px var(--neon-teal)) drop-shadow(0 0 14px var(--neon-magenta))';
+      setTimeout(()=>{ h2.style.filter = 'drop-shadow(0 0 6px var(--neon-teal)) drop-shadow(0 0 12px var(--neon-magenta))'; }, 500);
+    }, 7000);
+  </script>
+
+</body>
+</html>

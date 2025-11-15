@@ -1,3 +1,6 @@
+ui/desktop/node_modules/
+ui/desktop/*.log
+ui/desktop/.DS_Store
 # Ignore Python __pycache__ directories anywhere (including nested folders)
 __pycache__/
 **/__pycache__/**

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nova Assistant</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      background: #0b0b0c;
+      color: #e6e6e6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+
+    h2 {
+      font-weight: 600;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+      color: #9cd6ff;
+      text-shadow: 0 0 10px rgba(0,150,255,0.4);
+    }
+
+    /* Main glowing AI circle */
+    .circle {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,150,255,0.45), rgba(0,0,0,0.85));
+      animation: pulse 2.5s infinite ease-in-out;
+      box-shadow: 0 0 40px rgba(0,150,255,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      letter-spacing: 1px;
+      font-weight: 600;
+      color: #cdeaff;
+      margin: 20px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Outer ripple (“AI is alive” effect) */
+    .circle::before {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      border: 2px solid rgba(0,150,255,0.25);
+      animation: ripple 3.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: .85; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: .85; }
+    }
+
+    @keyframes ripple {
+      0% { transform: scale(1); opacity: 0.4; }
+      70% { transform: scale(1.3); opacity: 0; }
+      100% { opacity: 0; }
+    }
+
+    /* Glass panel */
+    .panel {
+      width: 100%;
+      max-width: 480px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.07);
+      backdrop-filter: blur(12px);
+      padding: 16px;
+      border-radius: 12px;
+      margin-top: 20px;
+      box-shadow: 0 0 20px rgba(0,150,255,0.1);
+    }
+
+    textarea {
+      width: 100%;
+      height: 100px;
+      background: rgba(0,0,0,0.4);
+      color: #e6e6e6;
+      border: 1px solid #2f2f2f;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 15px;
+      resize: vertical;
+    }
+
+    /* Buttons */
+    button {
+      background: linear-gradient(135deg, #0096ff, #0069c0);
+      border: none;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      transition: 0.2s ease;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 12px rgba(0,150,255,0.25);
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 16px rgba(0,150,255,0.4);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .pending {
+      background: rgba(255,170,0,0.12);
+      border-left: 3px solid #ffaa00;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin: 6px 0;
+      font-size: 13px;
+      color: #ffd37a;
+    }
+
+    .log {
+      margin-top: 20px;
+      height: 200px;
+      overflow-y: auto;
+      padding: 14px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+      font-size: 13px;
+      white-space: pre-wrap;
+      border: 1px solid rgba(255,255,255,0.07);
+      box-shadow: inset 0 0 10px rgba(0,150,255,0.05);
+    }
+
+  </style>
+</head>
+<body>
+
+  <h2>Nova Assistant</h2>
+
+  <div class="circle">NOVA</div>
+
+  <div class="panel">
+    <textarea id="prompt" placeholder="Ask Nova anything related to file management..."></textarea>
+    <div style="margin-top:12px;">
+      <button id="sendBtn">Send</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <div id="pendingContainer" class="panel" style="display:none;">
+    <h4>Pending destructive actions</h4>
+    <div id="pendingList"></div>
+    <button id="confirmBtn" style="background:linear-gradient(135deg,#ff9900,#cc7700);">Confirm & Execute</button>
+  </div>
+
+  <div class="log panel" id="log"></div>
+
+  <script>
+    const promptEl = document.getElementById('prompt');
+    const logEl = document.getElementById('log');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const pendingContainer = document.getElementById('pendingContainer');
+    const pendingListEl = document.getElementById('pendingList');
+    const confirmBtn = document.getElementById('confirmBtn');
+    let latestPending = [];
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+    }
+
+    async function sendPrompt() {
+      const text = promptEl.value.trim();
+      if (!text) return;
+      sendBtn.disabled = true;
+      log('Sending prompt...');
+
+      try {
+        const res = await window.nova.sendPrompt(text);
+        if (res.error) { log(`Error: ${res.message || res.error}`); return; }
+
+        log('Action: ' + JSON.stringify(res.action));
+
+        const result = res.result;
+        if (result?.status === 'requires_confirmation') {
+          latestPending = result.pending || [];
+          renderPending();
+        } else {
+          latestPending = [];
+          pendingContainer.style.display = 'none';
+          window.nova.speak('Done');
+          log('Result: ' + JSON.stringify(result));
+        }
+      } catch (e) {
+        log('Exception: ' + e);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function renderPending() {
+      pendingListEl.innerHTML = '';
+      pendingContainer.style.display = latestPending.length ? 'block' : 'none';
+
+      latestPending.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'pending';
+        div.innerText = `${idx+1}. ${item.action} ${JSON.stringify(item.args)}`;
+        pendingListEl.appendChild(div);
+      });
+    }
+
+    async function confirmActions() {
+      confirmBtn.disabled = true;
+      const actions = latestPending.map(p => ({ action: p.action, args: p.args }));
+
+      try {
+        const res = await window.nova.confirmActions(actions);
+        log('Confirm result: ' + JSON.stringify(res));
+        pendingContainer.style.display = 'none';
+        latestPending = [];
+        window.nova.speak('Confirmed');
+      } catch (e) {
+        log('Confirm error: ' + e);
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendPrompt);
+    clearBtn.addEventListener('click', () => { promptEl.value = ''; });
+    confirmBtn.addEventListener('click', confirmActions);
+  </script>
+
+</body>
+</html>

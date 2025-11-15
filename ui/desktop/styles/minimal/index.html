@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nova Assistant</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --panel: #141416;
+      --panel-border: #2a2b2e;
+      --text: #e0e0e2;
+      --accent: #7ec7c7; /* subtle cyan tint */
+      --accent-dim: #3d5b5b;
+      --danger-accent: #c7a97e;
+      --font-stack: system-ui, "Segoe UI", Roboto, Ubuntu, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-stack);
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 28px 34px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h2 {
+      font-weight: 500;
+      letter-spacing: 0.15rem;
+      margin: 0 0 18px;
+      color: var(--accent);
+      text-transform: uppercase;
+      font-size: 0.9rem;
+    }
+
+    /* Minimal sci‑fi ring */
+    .circle {
+      width: 170px; height: 170px; border-radius: 50%;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 50%, rgba(126,199,199,0.22), rgba(20,20,22,0.85));
+      border: 1px solid var(--panel-border);
+      overflow: hidden;
+      font-size: 0.85rem; letter-spacing: 0.25rem; font-weight: 600; color: var(--accent);
+      animation: breathe 4s ease-in-out infinite;
+      box-shadow: 0 0 12px rgba(126,199,199,0.35), 0 0 36px rgba(126,199,199,0.18);
+    }
+    .circle::before, .circle::after {
+      content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    }
+    .circle::before { border: 1px solid rgba(126,199,199,0.28); animation: ringPulse 5.5s linear infinite; }
+    .circle::after  { border: 1px solid rgba(126,199,199,0.14); animation: ringFade 6.5s ease-in-out infinite; }
+
+    @keyframes breathe { 
+      0%,100% { transform: scale(1); filter: brightness(0.95); }
+      40% { transform: scale(1.055); filter: brightness(1.15); }
+      60% { transform: scale(1.045); filter: brightness(1.08); }
+    }
+    @keyframes ringPulse { 
+      0% { transform: scale(1); opacity: .65;} 
+      45% { transform: scale(1.18); opacity:.08;} 
+      100% { transform: scale(1.18); opacity:0; } 
+    }
+    @keyframes ringFade  { 
+      0% { opacity:.32;} 
+      50% { opacity:.09;} 
+      100% { opacity:.32;} 
+    }
+
+    .panel {
+      width: 100%; max-width: 500px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      padding: 16px 18px 18px;
+      border-radius: 14px;
+      position: relative;
+      display: flex; flex-direction: column;
+    }
+    .panel + .panel { margin-top: 18px; }
+
+    textarea {
+      width: 100%; height: 110px; resize: vertical;
+      background: #101012; color: var(--text);
+      border: 1px solid #26282b; border-radius: 10px;
+      padding: 12px 14px; font-size: 0.85rem; line-height: 1.25rem;
+      font-family: var(--font-stack);
+      outline: none;
+      transition: border-color .25s, background .25s;
+    }
+    textarea:focus { border-color: var(--accent); background:#121214; }
+
+    .actions-row { display: flex; margin-top: 14px; gap: 10px; }
+    button {
+      flex: 0 0 auto;
+      background: #1b1c1e;
+      border: 1px solid #2e3134;
+      color: var(--text);
+      padding: 10px 18px; font-size: 0.75rem; letter-spacing: 0.08rem; text-transform: uppercase;
+      border-radius: 8px; cursor: pointer; position: relative;
+      transition: background .25s, border-color .25s, color .25s;
+    }
+    button:hover { background:#202225; border-color: var(--accent); }
+    button:active { background:#18191b; }
+    button:disabled { opacity:.4; cursor:not-allowed; }
+    #confirmBtn { border-color: var(--danger-accent); color: var(--danger-accent); }
+    #confirmBtn:hover { background:#221c12; }
+
+    .pending {
+      background:#18191b; border:1px solid #313336;
+      padding:8px 10px; border-radius:8px; margin:6px 0; font-size:0.7rem; line-height:1rem;
+      font-family: var(--font-stack); letter-spacing:0.05rem;
+      display:flex; align-items:flex-start; gap:8px;
+    }
+    .pending::before { content:"!"; font-weight:600; color:var(--danger-accent); }
+
+    .log {
+      height: 210px; overflow-y:auto;
+      padding:14px 16px; font-size:0.68rem; line-height:1rem;
+      background:#101012; border:1px solid #26282b; border-radius:10px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      white-space:pre-wrap; letter-spacing:0.05rem;
+      box-shadow: inset 0 0 0 1px #151517;
+    }
+    .log::-webkit-scrollbar { width:6px; }
+    .log::-webkit-scrollbar-track { background:#121214; }
+    .log::-webkit-scrollbar-thumb { background:#2b2d30; border-radius:3px; }
+    .log::-webkit-scrollbar-thumb:hover { background:#34373a; }
+
+    /* Responsive tweaks */
+    @media (max-width: 540px) {
+      body { padding:18px 18px 28px; }
+      .circle { width:150px; height:150px; }
+      .panel { padding:14px 16px 16px; }
+      textarea { height:100px; }
+    }
+  </style>
+</head>
+<body>
+  <h2>NOVA ASSISTANT</h2>
+  <div class="circle" id="statusCircle">NOVA</div>
+
+  <div class="panel">
+    <textarea id="prompt" placeholder="Ask Nova to manage files... e.g. 'Create folder demo in Desktop and add file test.txt with \"Hello\"' "></textarea>
+    <div class="actions-row">
+      <button id="sendBtn">Send</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+  </div>
+
+  <div id="pendingContainer" class="panel" style="display:none;">
+    <h4 style="margin:0 0 10px;font-weight:500;font-size:0.7rem;letter-spacing:0.12rem;color:var(--danger-accent);text-transform:uppercase;">Pending Confirmation</h4>
+    <div id="pendingList"></div>
+    <div class="actions-row" style="margin-top:10px;">
+      <button id="confirmBtn">Confirm & Execute</button>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    const promptEl = document.getElementById('prompt');
+    const logEl = document.getElementById('log');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const pendingContainer = document.getElementById('pendingContainer');
+    const pendingListEl = document.getElementById('pendingList');
+    const confirmBtn = document.getElementById('confirmBtn');
+    let latestPending = [];
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      logEl.textContent = `[${time}] ${msg}\n` + logEl.textContent;
+    }
+
+    async function sendPrompt() {
+      const text = promptEl.value.trim();
+      if (!text) return;
+      sendBtn.disabled = true;
+      log('Sending prompt...');
+
+      try {
+        const res = await window.nova.sendPrompt(text);
+        if (res.error) { log(`Error: ${res.message || res.error}`); return; }
+
+        log('Action: ' + JSON.stringify(res.action));
+
+        const result = res.result;
+        if (result?.status === 'requires_confirmation') {
+          latestPending = result.pending || [];
+          renderPending();
+        } else {
+          latestPending = [];
+          pendingContainer.style.display = 'none';
+          window.nova.speak('Done');
+          log('Result: ' + JSON.stringify(result));
+        }
+      } catch (e) {
+        log('Exception: ' + e);
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function renderPending() {
+      pendingListEl.innerHTML = '';
+      pendingContainer.style.display = latestPending.length ? 'block' : 'none';
+
+      latestPending.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'pending';
+        div.innerText = `${idx+1}. ${item.action} ${JSON.stringify(item.args)}`;
+        pendingListEl.appendChild(div);
+      });
+    }
+
+    async function confirmActions() {
+      confirmBtn.disabled = true;
+      const actions = latestPending.map(p => ({ action: p.action, args: p.args }));
+
+      try {
+        const res = await window.nova.confirmActions(actions);
+        log('Confirm result: ' + JSON.stringify(res));
+        pendingContainer.style.display = 'none';
+        latestPending = [];
+        window.nova.speak('Confirmed');
+      } catch (e) {
+        log('Confirm error: ' + e);
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', sendPrompt);
+    clearBtn.addEventListener('click', () => { promptEl.value = ''; });
+    confirmBtn.addEventListener('click', confirmActions);
+
+    // Optional status styling hook (future upgrade for listening/speaking states)
+    function setStatus(mode) {
+      const circle = document.getElementById('statusCircle');
+      circle.dataset.state = mode;
+      // Minimal visual changes could be added here later.
+    }
+  </script>
+
+</body>
+</html>
