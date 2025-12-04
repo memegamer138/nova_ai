@@ -12,7 +12,7 @@ Notes:
 
 Execution modes:
 - Preferred:  python -m nova_ai.server   (runs as a package, relative imports work)
-- Fallback:   python src\nova_ai\server.py  (we inject parent path so relative imports still resolve)
+- Fallback:   python src/nova_ai/server.py  (we inject parent path so relative imports still resolve)
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import importlib
 import pkgutil
 import tempfile
 from typing import Any, Dict
-
+from flask_cors import CORS
 from flask import Flask, jsonify, request
 
 try:

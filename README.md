@@ -25,23 +25,6 @@ This repository contains an early MVP: a minimal core that routes natural-langua
 - skills/ — folder where individual skill modules live (for example `skills/file_manager.py`).
 - config/settings.json — optional configuration for defaults (not heavily used by the MVP yet).
 
-## Usage
-
-Start the agent from the repository root:
-
-```powershell
-C:/path/to/python.exe main.py
-```
-
-Try natural commands at the prompt:
-
-- create a file called notes.txt in my desktop folder
-- create file named groceries.txt in OneDrive
-- create report.md in Downloads
-- delete file named notes.txt in Documents
-
-The parser supports named folders (Desktop, Downloads, Documents, Pictures, OneDrive) and absolute paths. If a command is ambiguous (contains both "create" and "delete"), the agent will refuse to act to avoid accidental operations.
-
 ## How to add a new skill
 
 1. Create a new Python module in `skills/`, e.g. `skills/browser.py`.
@@ -74,6 +57,175 @@ This project runs code on your local machine. That means you are responsible for
 
 - The parser is intentionally simple and heuristic-based. For more robust intent parsing, consider integrating an NLP model or rule engine.
 - The code is Python 3.12+ (as used during development). Keep dependencies minimal; the core uses only the Python stdlib.
+
+## Desktop UI (Electron)
+
+This project includes a lightweight Electron-based desktop UI under `ui/desktop` that loads `index.html` and communicates with the Flask server at `http://127.0.0.1:8000`.
+
+How it works:
+- The Electron main process (`ui/desktop/main.js`) opens a BrowserWindow and loads `index.html`.
+- `preload.js` exposes a small API on `window.nova` which POSTs to the backend endpoints `/api/prompt` and `/api/confirm`.
+- The backend (Flask) must be running for the UI to function.
+
+Quick start (Windows PowerShell):
+
+```powershell
+# from repo root
+# create venv (if needed) and install Python deps
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# start the server (preferred from src so relative imports work)
+Set-Location src
+python -m nova_ai.server
+
+# in a second terminal: start the Electron UI
+Set-Location ui\desktop
+npm install
+npm run start
+```
+
+Convenience script:
+- There's a helper `run_desktop.ps1` at the repository root that will create a venv (if missing), install Python requirements, start the Flask server in a new PowerShell window, and launch the Electron UI. Run it from PowerShell:
+
+```powershell
+.\run_desktop.ps1
+```
+
+Packaging:
+- To produce a distributable standalone app, use an Electron packager/builder (for example `electron-builder` or `electron-packager`) inside `ui/desktop` and bundle or include the Python runtime and server invocation. Packaging Python+Electron is a larger topic; I can add a basic `electron-builder` config if you want.
+
+---
+
+## About this README
+
+This README has been updated to reflect the current code in the repository (CLI, Flask backend, and Electron desktop UI). It contains:
+- A concise overview of what the project currently does
+- Step-by-step installation and run instructions (Windows PowerShell)
+- How the desktop UI interacts with the backend
+- How to install and troubleshoot the Ollama CLI (optional LLM runtime)
+- Suggestions for packaging and next steps / roadmap
+
+If anything in your local setup differs (Python path, Node version, Windows vs WSL), adapt the commands accordingly.
+
+**Important:** The project currently supports a built-in regex-based parser (fast, local) and an optional Ollama CLI adapter for LLM-driven reasoning. If the Ollama binary is not on your PATH, the server will fall back to the regex parser so the UI remains functional.
+
+---
+
+## Quick Installation & Run (Windows PowerShell)
+
+Prerequisites:
+- Python 3.11+ (3.12 recommended)
+- Node.js + npm (for Electron UI)
+- Optional: Ollama CLI (if you want LLM reasoning; otherwise the regex fallback will be used)
+
+1) Create and activate a Python virtual environment, then install Python deps:
+
+```powershell
+# From the repository root
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+2) Start the backend server (preferred run as package from `src`):
+
+```powershell
+Set-Location src
+python -m nova_ai.server
+# The server binds to 127.0.0.1:8000 by default; change port with $env:NOVA_PORT
+```
+
+3) Start the desktop Electron UI (new terminal):
+
+```powershell
+Set-Location ui\desktop
+npm install
+npm run start
+```
+
+**Alternate:** Convenience helper
+- You can use the included helper `run_desktop.ps1` from the repo root. It will create a venv (if missing), install Python deps, start the Flask server in a new PowerShell window, and launch the Electron UI:
+
+```powershell
+.\run_desktop.ps1
+```
+
+---
+
+## Ollama CLI (recommended) — install and verify
+
+The repository includes an optional adapter (`src/nova_ai/mcp/ollama_adapter.py`) that calls the external `ollama` CLI. If you want LLM-powered reasoning instead of the regex parser, install Ollama and pull a model.
+To experience the full functionality of the app, please install ollama from the official webiste.
+Installation (Windows):
+- Download and run the Windows installer from https://ollama.com (preferred), OR
+- Use Winget if available:
+
+```powershell
+winget install Ollama.Ollama
+```
+
+Verification (in PowerShell):
+
+```powershell
+Get-Command ollama
+ollama --version
+where.exe ollama
+```
+
+Pull the `llama3.1:8b` model:
+
+```powershell
+ollama pull llama3.1:8b
+```
+
+If `ollama` is installed but the server still can't find it, ensure the terminal you use to run the Flask server inherits PATH that includes the `ollama` binary and restart the terminal after installation.
+
+Environment variable controls:
+- `OLLAMA_MODEL` — model name used by the adapter (default in code: `llama3.1:8b`)
+- `NOVA_PORT` — port the Flask server binds to (default 8000)
+
+Example (set model in the current PowerShell session):
+
+```powershell
+$env:OLLAMA_MODEL = 'llama3.1:8b'
+```
+
+**Note:** A `.env` file is not required by the current code; the adapter reads environment variables via `os.environ`. If you prefer a `.env` workflow, load it before starting the server or add a small loader (python-dotenv) to the server entry.
+
+
+## Development & Extending
+
+- Add new skills in `src/nova_ai/skills/` and register them via `@register_skill(...)` in `core/registry.py`.
+- The engine exposes two code paths:
+   - `handle_command()` — fast regex-based parser (no external LLM needed)
+   - `prompt_to_action()` via the Ollama adapter — LLM-driven intent parsing
+- To change adapters or add a different provider (OpenAI, local llama.cpp wrapper), implement a new adapter module under `src/nova_ai/mcp/` and update the server to call it.
+
+Packaging ideas
+- To ship a standalone desktop app that includes the Python backend, use an Electron packager and include a launcher that starts the Python server in the app bundle. Tools to investigate: `electron-builder`, `electron-forge`, `pyinstaller` (to bundle Python into an executable), or `briefcase`.
+
+---
+
+## Roadmap / Next steps
+
+- Packaging: Add a basic `electron-builder` configuration and a small wrapper to start the bundled Python server.
+- Adapter flexibility: Add a configuration option to switch adapters (ollama/openai/llama.cpp) at runtime.
+- Permission gating: Add user confirmation/permission model for risky operations and a persistent audit log UI.
+- Tests & CI: Add automated tests for the Flask API and the UI flows (integration test harness).
+
+---
+
+## Contributing
+
+- PRs welcome. Please run tests (when added) and follow the repository coding conventions.
+
+## License
+
+If you want to publish this project publicly, add a license file (e.g., MIT or Apache-2.0). No license is included yet.
+
 
 # What talks to what
 
